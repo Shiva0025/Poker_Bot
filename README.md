@@ -14,7 +14,7 @@ Python 3.11. The runner uses only the standard library; your bot may also use nu
 
 ## Quick start
 
-    python3.11 engine.py bot.py example_bots/random_bot.py
+    python3.11 engine.py bot.py bot.py
 
 This plays a 400-hand Stage 1 match and prints a summary. A match is played in two legs of
 200 hands. Each leg starts fresh bot processes and plays every deal once; the second leg
@@ -60,8 +60,55 @@ each leg and `match_end` at the end of each leg, and must exit after `match_end`
 - [ ] The bot ignores message types and fields it does not know
 - [ ] The bot exits after `match_end`
 - [ ] A full 400-hand match (two legs) runs inside the per-leg time bank with zero notices:
-      `python3.11 engine.py bot.py example_bots/random_bot.py`
+      `python3.11 engine.py bot.py bot.py`
 - [ ] Also try `--stage 2` to check your timing over 1000 hands
 
 You may reuse any code from this kit, including the hand evaluator in `engine.py`. Material
 supplied by the organisers is allowed under Rulebook 10.1.
+
+---
+
+# Team notes: our bot, tests and submission
+
+**What to upload:** only `Starter_Kit/bot.py` (single file, ~166 KB, stdlib only; RB 5.10 limit is 5 MB).
+No ZIP is needed: the bot reads no data files (its preflop table is embedded).
+
+| Path | Purpose |
+|---|---|
+| `bot.py` | **The submission.** |
+| `AUDIT.md` | Requirements checklist with rule references, audit findings, fixes, limitations |
+| `TEST_RESULTS.md` | Commands, environment, seeds, measured results and their limits |
+| `STRATEGY.md` | Plain-language description of the strategy for code review |
+| `baseline/bot_original.py` | Unchanged pre-audit bot (SHA-256 `5243a40a…8fe48`) |
+| `engine.py` | Local match runner |
+| `dev/opponents/` | Our test opponents (style bots, variants of the original bot); never submitted |
+| `dev/tools/` | Tests, benchmark, table generator; never submitted |
+| `dev/results/` | Raw benchmark data (JSON lines, one per match) |
+
+There is no local Python 3.11 on the development machine. Everything below runs in the official-version image
+`python:3.11-slim` (Docker) from the `Starter_Kit` directory:
+
+    # one full Stage 1 / Stage 2 match, clocks on, 1 vCPU, 1 GB
+    docker run --rm --cpus 1 --memory 1g --network none -v "$PWD":/w -w /w python:3.11-slim \
+        python engine.py bot.py bot.py --log-dir ''
+    docker run --rm --cpus 1 --memory 1g --network none -v "$PWD":/w -w /w python:3.11-slim \
+        python engine.py bot.py bot.py --stage 2 --log-dir ''
+
+    # tests (each exits non-zero on failure)
+    python3 dev/tools/test_protocol.py bot.py        # stdin/stdout protocol conformance
+    python3 dev/tools/test_units.py bot.py           # regressions + legality fuzz
+    python3 dev/tools/test_evaluator.py bot.py       # evaluator vs engine.best_hand
+    python3 dev/tools/validate_pf.py bot.py          # preflop table checks + independent regeneration
+
+    # benchmark (parallel, unchanged engine, clocks on) and report
+    python3 dev/tools/bench.py --bots bot.py baseline/bot_original.py --opps orig tag value \
+        --stage 2 --seeds 1-10 --jobs 8 --out dev/results/my_run.jsonl
+    python3 dev/tools/report.py dev/results/my_run.jsonl --pair bot.py baseline/bot_original.py
+
+    # regenerate the embedded preflop table (≈ 25 CPU-minutes at 16000 samples, 3 processes)
+    python3 dev/tools/gen_pf.py bot.py 16000 3 dev/results/pf_blob.txt
+
+    # final validation of the exact submission file in a clean directory
+    mkdir -p dev/release && docker run --rm --cpus 1 --memory 1g --network none \
+        -v "$PWD":/w:ro -v "$PWD/dev/release":/rel -w /w python:3.11-slim \
+        python dev/tools/final_check.py /rel
