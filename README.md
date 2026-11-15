@@ -4,7 +4,6 @@
 |---|---|
 | `bot.py` | Starter bot (Protocol Specification §11). Replace its strategy with yours. |
 | `engine.py` | Local match runner. Plays a full match between two bots under the official rules. |
-| `example_bots/random_bot.py` | A random opponent to test against. |
 
 Read the Problem Statement (game rules), the Protocol Specification (messages) and the
 Rulebook (tournament, limits, conduct) before you start.
